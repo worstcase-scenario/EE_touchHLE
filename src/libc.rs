@@ -106,6 +106,7 @@ pub const DYLIB: crate::dyld::HostDylib = crate::dyld::HostDylib {
         sys::ptrace::FUNCTIONS,
         sys::timeb::FUNCTIONS,
         sys::socket::FUNCTIONS,
+        sys::uio::FUNCTIONS,
         sys::utsname::FUNCTIONS,
         sys::wait::FUNCTIONS,
         sysctl::FUNCTIONS,
@@ -118,6 +119,7 @@ pub const DYLIB: crate::dyld::HostDylib = crate::dyld::HostDylib {
 /// Container for state of various child modules
 #[derive(Default)]
 pub struct State {
+    crypto: crypto::State,
     dirent: dirent::State,
     keymgr: keymgr::State,
     math: math::State,
@@ -132,7 +134,6 @@ pub struct State {
     time: time::State,
     errno: errno::State,
     clocale: clocale::State,
-    crypto: crypto::State,
     mach_vm: mach::vm_map::State,
     malloc: malloc::State,
     mman: sys::mman::State,

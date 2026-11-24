@@ -301,6 +301,7 @@ checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
  "block-buffer",
  "crypto-common",
+ "subtle",
 ]
 
 [[package]]
@@ -400,6 +401,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "hmac"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
+dependencies = [
+ "digest",
 ]
 
 [[package]]
@@ -759,6 +769,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
+name = "subtle"
+version = "2.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
+
+[[package]]
 name = "symphonia"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1003,7 +1019,7 @@ dependencies = [
 
 [[package]]
 name = "touchHLE"
-version = "0.2.3"
+version = "0.3.0"
 dependencies = [
  "cargo-license",
  "cc",
@@ -1011,7 +1027,9 @@ dependencies = [
  "corosensei",
  "digest",
  "encoding_rs",
+ "flate2",
  "gl_generator",
+ "hmac",
  "hound",
  "libc",
  "mach_object",
@@ -1020,6 +1038,7 @@ dependencies = [
  "owned_ttf_parser",
  "plist",
  "quick-xml",
+ "regex-lite",
  "rusttype",
  "sdl2",
  "sdl2-sys",
@@ -1038,7 +1057,7 @@ dependencies = [
 
 [[package]]
 name = "touchHLE_dynarmic_wrapper"
-version = "0.2.3"
+version = "0.3.0"
 dependencies = [
  "cc",
  "cmake",
@@ -1046,35 +1065,35 @@ dependencies = [
 
 [[package]]
 name = "touchHLE_gl_bindings"
-version = "0.2.3"
+version = "0.3.0"
 dependencies = [
  "gl_generator",
 ]
 
 [[package]]
 name = "touchHLE_openal_soft_wrapper"
-version = "0.2.3"
+version = "0.3.0"
 dependencies = [
  "cmake",
 ]
 
 [[package]]
 name = "touchHLE_pvrt_decompress_wrapper"
-version = "0.2.3"
+version = "0.3.0"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "touchHLE_stb_image_wrapper"
-version = "0.2.3"
+version = "0.3.0"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "touchHLE_version"
-version = "0.2.3"
+version = "0.3.0"
 
 [[package]]
 name = "ttf-parser"

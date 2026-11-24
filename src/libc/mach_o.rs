@@ -6,7 +6,28 @@
 //! `Mach-O` related functions.
 
 use crate::dyld::{export_c_func, FunctionExports};
+use crate::mem::{GuestUSize, MutPtr};
 use crate::Environment;
+
+/// `int _NSGetExecutablePath(char *buf, uint32_t *bufsize)`
+/// `*bufsize` is in/out: if `buf` is too small, -1 is returned and `*bufsize`
+/// is set to the required size (including the NUL terminator).
+fn _NSGetExecutablePath(env: &mut Environment, buf: MutPtr<u8>, buf_size: MutPtr<u32>) -> i32 {
+    let binding = env.bundle.executable_path();
+    let bin_path = binding.as_str();
+
+    let len: GuestUSize = bin_path.len().try_into().unwrap();
+    if env.mem.read(buf_size) <= len || buf.is_null() {
+        env.mem.write(buf_size, len + 1);
+        return -1;
+    }
+
+    env.mem
+        .bytes_at_mut(buf, len)
+        .copy_from_slice(bin_path.as_bytes());
+    env.mem.write(buf + len, b'\0');
+    0
+}
 
 fn get_end(env: &mut Environment) -> u32 {
     // Assume app binary is the first.
@@ -34,4 +55,8 @@ fn get_etext(env: &mut Environment) -> u32 {
     text_section.next_section_addr()
 }
 
-pub const FUNCTIONS: FunctionExports = &[export_c_func!(get_end()), export_c_func!(get_etext())];
+pub const FUNCTIONS: FunctionExports = &[
+    export_c_func!(_NSGetExecutablePath(_, _)),
+    export_c_func!(get_end()),
+    export_c_func!(get_etext()),
+];

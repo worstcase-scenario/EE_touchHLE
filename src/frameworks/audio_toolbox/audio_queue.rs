@@ -126,8 +126,8 @@ type AudioQueuePropertyListenerProc = GuestFunction;
 
 const kAudioQueueErr_InvalidBuffer: OSStatus = -66687;
 const kAudioQueueErr_InvalidPropertySize: OSStatus = -66683;
-const kAudioQueueErr_BufferInQueue: OSStatus = -66679;
 const kAudioQueueErr_CannotStart: OSStatus = -66681;
+const kAudioQueueErr_BufferInQueue: OSStatus = -66679;
 
 pub fn AudioQueueNewOutput(
     env: &mut Environment,

@@ -24,6 +24,7 @@ pub struct State {
     rand: u32,
     random: u32,
     arc4random: u32,
+    fcvt_buf: Option<MutPtr<u8>>,
 }
 
 // Sizes of zero are implementation-defined. macOS will happily give you back
@@ -565,6 +566,36 @@ fn strtol(env: &mut Environment, str: ConstPtr<u8>, endptr: MutPtr<MutPtr<u8>>, 
     }
 }
 
+fn wcstol(
+    env: &mut Environment,
+    nptr: ConstPtr<wchar_t>,
+    endptr: MutPtr<MutPtr<wchar_t>>,
+    base: i32,
+) -> i32 {
+    // TODO: support other locales
+    let ctype_locale = setlocale(env, LC_CTYPE, Ptr::null());
+    assert_eq!(env.mem.read(ctype_locale), b'C');
+
+    let w_string = env.mem.wcstr_at(nptr);
+    assert!(w_string.is_ascii()); // TODO
+
+    assert!(endptr.is_null()); // TODO
+
+    let c_string = env.mem.alloc_and_write_cstr(w_string.as_bytes());
+    // TODO: use str_to_int_inner_generic() instead
+    let (res, _) = strtol_inner(env, c_string.cast_const(), base as u32).unwrap();
+    env.mem.free(c_string.cast());
+    log_dbg!(
+        "wcstol({:?} ({:?}), {:?}, {}) -> {}",
+        nptr,
+        w_string,
+        endptr,
+        base,
+        res
+    );
+    res
+}
+
 fn realpath(
     env: &mut Environment,
     file_name: ConstPtr<u8>,
@@ -594,42 +625,7 @@ fn realpath(
     resolve_name
 }
 
-/// `int _NSGetExecutablePath(char *buf, uint32_t *bufsize)`
-/// Writes the path to the running executable into `buf`. `*bufsize` is
-/// in/out: on input the size of `buf`, and if it's too small the function
-/// returns -1 and sets `*bufsize` to the required size (including the NUL
-/// terminator); on success it returns 0.
-fn _NSGetExecutablePath(
-    env: &mut Environment,
-    buf: MutPtr<u8>,
-    bufsize: MutPtr<GuestUSize>,
-) -> i32 {
-    let path = env.bundle.executable_path().as_str().to_string();
-    let needed = path.len() as GuestUSize + 1; // + NUL terminator
-
-    let available = env.mem.read(bufsize);
-    // Always report the needed size back, matching the real function.
-    env.mem.write(bufsize, needed);
-
-    if available < needed || buf.is_null() {
-        log_dbg!(
-            "_NSGetExecutablePath: buffer too small (have {}, need {}), returning -1",
-            available,
-            needed
-        );
-        return -1;
-    }
-
-    env.mem
-        .bytes_at_mut(buf, path.len() as GuestUSize)
-        .copy_from_slice(path.as_bytes());
-    env.mem.write(buf + path.len() as GuestUSize, b'\0');
-
-    log_dbg!("_NSGetExecutablePath => {:?}", path);
-    0
-}
-
-fn mbstowcs(
+pub fn mbstowcs(
     env: &mut Environment,
     pwcs: MutPtr<wchar_t>,
     s: ConstPtr<u8>,
@@ -689,6 +685,52 @@ fn system(env: &mut Environment, cmd: ConstPtr<u8>) -> i32 {
     todo!()
 }
 
+fn fcvt(
+    env: &mut Environment,
+    value: f64,
+    ndigit: i32,
+    decpt: MutPtr<i32>,
+    sign: MutPtr<i32>,
+) -> MutPtr<u8> {
+    log_dbg!("fcvt({}, {}, {:?}, {:?})", value, ndigit, decpt, sign);
+    assert!(ndigit > 0);
+    let fcvt_buf = *env.libc_state.stdlib.fcvt_buf.get_or_insert_with(|| {
+        // TODO: 64 is arbitrary chosen
+        env.mem.alloc(64).cast()
+    });
+    env.mem
+        .write(sign, if value.is_sign_negative() { 1 } else { 0 });
+    if value == 0.0 {
+        let ndigit_size = ndigit as GuestUSize;
+        assert!(ndigit_size < 64); // TODO
+        env.mem.write(decpt, 0);
+        env.mem.bytes_at_mut(fcvt_buf, ndigit_size).fill(b'0');
+        env.mem.write(fcvt_buf + ndigit_size, b'\0');
+        return fcvt_buf;
+    }
+
+    let mut formatted = format!("{:.1$}", value.abs(), ndigit as usize);
+    assert!(formatted.contains('.'));
+    assert!(formatted.len() < 64); // TODO
+
+    let dot_idx = formatted.find('.').unwrap();
+    formatted.remove(dot_idx);
+
+    let leading_zeros_trimmed = formatted.trim_start_matches('0');
+    let leading_zeros_idx = formatted.len() - leading_zeros_trimmed.len();
+
+    env.mem
+        .write(decpt, dot_idx as i32 - leading_zeros_idx as i32);
+
+    let len = leading_zeros_trimmed.len().try_into().unwrap();
+    env.mem
+        .bytes_at_mut(fcvt_buf, len)
+        .copy_from_slice(leading_zeros_trimmed.as_bytes());
+    env.mem.write(fcvt_buf + len, b'\0');
+
+    fcvt_buf
+}
+
 pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(malloc(_)),
     export_c_func!(malloc_size(_)),
@@ -721,12 +763,13 @@ pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(wcstoul(_, _, _)),
     export_c_func!(strtoull(_, _, _)),
     export_c_func!(strtol(_, _, _)),
+    export_c_func!(wcstol(_, _, _)),
     export_c_func!(realpath(_, _)),
     export_c_func_aliased!("realpath$DARWIN_EXTSN", realpath(_, _)),
-    export_c_func!(_NSGetExecutablePath(_, _)),
     export_c_func!(mbstowcs(_, _, _)),
     export_c_func!(wcstombs(_, _, _)),
     export_c_func!(system(_)),
+    export_c_func!(fcvt(_, _, _, _)),
 ];
 
 /// A simple wrapper around [atof_inner_generic] for the case of C string.
@@ -860,7 +903,7 @@ where
 
 /// A simple wrapper around [str_to_int_inner_generic]
 /// for the case of C string and i32.
-fn strtol_inner(env: &mut Environment, str: ConstPtr<u8>, base: u32) -> Result<(i32, u32), ()> {
+pub fn strtol_inner(env: &mut Environment, str: ConstPtr<u8>, base: u32) -> Result<(i32, u32), ()> {
     str_to_int_inner_generic(
         env,
         |env, s, idx| Ok(env.mem.read(s + idx)),

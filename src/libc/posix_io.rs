@@ -488,6 +488,11 @@ pub fn write(
         return -1;
     };
 
+    if buffer.is_null() {
+        assert_eq!(size, 0);
+        return 0;
+    }
+
     let buffer_slice = env.mem.bytes_at(buffer.cast(), size);
     match file.file.write(buffer_slice) {
         Ok(bytes_written) => {
